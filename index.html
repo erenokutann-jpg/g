@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Poodle Cafe Run 🐩🌹☕</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Retro & Modern Fontlar -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 15%, #2a0e28 0%, #120517 60%, #07010a 100%);
+      font-family: 'Outfit', sans-serif;
+      touch-action: manipulation;
+      overflow-x: hidden;
+    }
+
+    .pixel-font {
+      font-family: 'Press Start 2P', monospace;
+    }
+
+    /* Arka plan süzülen yapraklar katmanı */
+    #bgPetalsCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Arcade cam efektli çerçeve */
+    .arcade-frame {
+      border: 2px solid rgba(244, 114, 182, 0.45);
+      box-shadow: 0 0 35px rgba(244, 63, 94, 0.25), inset 0 0 25px rgba(244, 114, 182, 0.12);
+    }
+
+    /* Scanline çizgileri */
+    .scanlines {
+      position: relative;
+    }
+    .scanlines::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.22) 50%);
+      background-size: 100% 4px;
+      z-index: 20;
+      pointer-events: none;
+      opacity: 0.55;
+    }
+
+    /* Dokunmatik Buton Efekti */
+    .touch-btn:active {
+      transform: scale(0.92);
+      filter: brightness(1.2);
+    }
+
+    /* Gül yaprağı yağmuru canvas'ı */
+    #celebrationPetalsCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 45;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-white flex flex-col items-center justify-between p-3 sm:p-5 relative">
+
+  <!-- Arka Planda Sürekli Süzülen Gül Yaprakları Canvas'ı -->
+  <canvas id="bgPetalsCanvas"></canvas>
+
+  <!-- Varsa yerel ses dosyası desteği -->
+  <audio id="externalAudio" src="muzik.mp3" loop preload="auto"></audio>
+
+  <!-- Üst Bar -->
+  <header class="w-full max-w-md flex items-center justify-between py-2.5 px-4 bg-slate-900/85 backdrop-blur-md rounded-2xl border border-pink-500/35 z-30 mb-2 shadow-xl">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl animate-pulse">🐩</span>
+      <h1 class="pixel-font text-xs sm:text-sm text-pink-300 tracking-wider flex items-center gap-1.5">
+        POODLE CAFE RUN <span class="text-rose-400">🌹</span>
+      </h1>
+    </div>
+
+    <!-- Müzik Kontrolü -->
+    <button id="soundBtn" onclick="toggleAudio()" class="px-3.5 py-1.5 rounded-xl bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/40 text-xs font-semibold flex items-center gap-1.5 text-pink-300 transition active:scale-95 shadow-sm">
+      <span id="soundIcon">🔇</span>
+      <span id="soundLabel">Müzik 🎵</span>
+    </button>
+  </header>
+
+  <!-- Arcade Oyun Alanı -->
+  <main class="relative w-full max-w-md aspect-[4/5] sm:aspect-[4/4.5] max-h-[72vh] flex flex-col rounded-3xl overflow-hidden arcade-frame bg-[#14061e] scanlines shadow-2xl z-20">
+    
+    <!-- Üst Skor & Hedef Göstergesi -->
+    <div class="absolute top-0 left-0 right-0 z-30 flex justify-between items-center px-4 py-2.5 bg-black/65 backdrop-blur-sm border-b border-pink-500/25">
+      <div class="flex items-center gap-2">
+        <span class="pixel-font text-[10px] text-amber-300">SKOR:</span>
+        <span id="scoreDisplay" class="pixel-font text-xs text-white">0</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="pixel-font text-[9px] text-pink-300">HEDEF:</span>
+        <span class="pixel-font text-[10px] text-emerald-400">100 PUAN</span>
+      </div>
+    </div>
+
+    <!-- Oyun Çizim Canvas'ı -->
+    <canvas id="gameCanvas" class="w-full h-full block cursor-pointer"></canvas>
+
+    <!-- BAŞLANGIÇ EKRANI -->
+    <div id="startScreen" class="absolute inset-0 bg-black/85 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
+      <div class="text-5xl mb-3 animate-bounce">🐩☕🍰🌹</div>
+      <h2 class="pixel-font text-base text-pink-400 mb-2">POODLE CAFE RUN</h2>
+      <p class="text-base text-pink-200 mb-5">Poodle ile lezzetleri topla, engellerden kaç!</p>
+
+      <div class="bg-purple-950/75 border border-pink-500/30 rounded-2xl p-4 mb-6 max-w-xs text-sm text-gray-200 text-left space-y-2.5 shadow-inner">
+        <p class="text-emerald-400 font-bold flex items-center gap-1.5">
+          <span>✨</span> Toplanacaklar:
+        </p>
+        <p class="flex items-center justify-between pl-1"><span>☕ Kahve</span> <b class="text-emerald-400">+10 Puan</b></p>
+        <p class="flex items-center justify-between pl-1"><span>🍰 Tatlı</span> <b class="text-emerald-400">+15 Puan</b></p>
+        
+        <p class="text-rose-400 font-bold pt-1.5 flex items-center gap-1.5">
+          <span>⚠️</span> Kaçılacaklar:
+        </p>
+        <p class="text-xs text-rose-200 pl-1 leading-relaxed">🤒 Hastalık • 🌧️ Yağmur • 🌊 Sel • 🥶 Soğuk Hava</p>
+      </div>
+
+      <button onclick="startGame()" class="pixel-font text-xs bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 hover:from-pink-600 hover:to-rose-600 text-white py-3.5 px-8 rounded-2xl shadow-lg shadow-pink-500/40 transition active:scale-95 border border-pink-300">
+        OYUNU BAŞLAT ▶
+      </button>
+      <p class="text-xs text-gray-400 mt-3">Hedef: 100 Puan</p>
+    </div>
+
+    <!-- GAME OVER EKRANI -->
+    <div id="gameOverScreen" class="hidden absolute inset-0 bg-black/90 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
+      <div class="text-5xl mb-2" id="gameOverEmoji">🌧️</div>
+      <h2 class="pixel-font text-base text-rose-500 mb-2">OYUN BİTTİ!</h2>
+      <p id="gameOverReason" class="text-base text-gray-200 mb-3">Engele yakalandın!</p>
+      
+      <div class="bg-slate-900/85 border border-rose-500/30 rounded-2xl p-3 mb-6 w-full max-w-xs">
+        <span class="text-xs text-gray-400">Skorun:</span>
+        <p id="finalScore" class="pixel-font text-xl text-amber-300 mt-1">0</p>
+      </div>
+
+      <button onclick="restartGame()" class="pixel-font text-xs bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white py-3.5 px-8 rounded-2xl shadow-lg shadow-pink-500/30 transition active:scale-95 border border-pink-300">
+        TEKRAR DENE ↺
+      </button>
+    </div>
+
+    <!-- KUTLAMA GÜL YAPRAĞI YAĞMURU CANVAS'I -->
+    <canvas id="celebrationPetalsCanvas" class="hidden"></canvas>
+
+    <!-- KAZANMA & YENİLENEN AYDINLIK TARİH/SAAT SEÇİM MODALI -->
+    <div id="victoryScreen" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-between p-5 overflow-y-auto">
+      <div class="w-full flex flex-col items-center pt-2">
+        <div class="text-5xl mb-2 animate-bounce">🐩 🌹 ☕ 🍰</div>
+        <h2 class="pixel-font text-xs sm:text-sm text-emerald-400 mb-1 text-center leading-relaxed">TEBRİKLER! KAZANDIN!</h2>
+        <p class="text-sm text-pink-200 mb-4 text-center">Tüm kahve ve tatlıları başarıyla topladın!</p>
+
+        <!-- YENİ: Aydınlık, çok net ve şık Randevu Seçim Kartı -->
+        <div class="w-full max-w-xs bg-gradient-to-b from-white via-rose-50/95 to-pink-50 rounded-3xl p-5 shadow-2xl border-2 border-rose-300 text-slate-900 space-y-4">
+          <div class="text-center pb-1 border-b border-rose-200">
+            <span class="text-xs font-extrabold tracking-wider text-rose-600 flex items-center justify-center gap-1.5">
+              <span>☕</span> KAHVE & TATLI BULUŞMASI <span>🍰</span>
+            </span>
+            <p class="text-[11px] text-gray-500 mt-0.5">Müsait olduğun gün ve saati belirle</p>
+          </div>
+
+          <!-- Aydınlık Tarih Seçici -->
+          <div>
+            <label class="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+              <span>📅</span> Buluşma Tarihi:
+            </label>
+            <div class="relative">
+              <input type="date" id="dateInput" class="w-full bg-white border-2 border-rose-300 hover:border-rose-400 focus:border-rose-500 rounded-2xl px-4 py-3 text-base font-bold text-slate-800 focus:outline-none shadow-sm text-center">
+            </div>
+          </div>
+
+          <!-- Aydınlık Saat Seçici -->
+          <div>
+            <label class="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+              <span>⏰</span> Buluşma Saati:
+            </label>
+            <div class="relative">
+              <input type="time" id="timeInput" value="19:30" class="w-full bg-white border-2 border-rose-300 hover:border-rose-400 focus:border-rose-500 rounded-2xl px-4 py-3 text-base font-bold text-slate-800 focus:outline-none shadow-sm text-center">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WhatsApp Aksiyon Butonu -->
+      <div class="w-full max-w-xs pb-2 mt-4">
+        <button onclick="sendToWhatsapp()" class="w-full bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:from-emerald-600 hover:to-green-700 text-white font-extrabold py-4 px-5 rounded-2xl shadow-xl shadow-emerald-500/40 flex items-center justify-center gap-2.5 transition active:scale-95 text-base border-2 border-emerald-300">
+          <span class="text-xl">💬</span>
+          <span>WhatsApp ile Gönder</span>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Mobil Dokunmatik Kontroller -->
+  <footer class="w-full max-w-md flex justify-between items-center px-4 py-2 mt-2 gap-3 z-30">
+    <button id="leftTouchBtn" class="touch-btn flex-1 py-4 bg-gradient-to-b from-slate-800/95 to-slate-900 border-2 border-pink-500/40 rounded-2xl flex items-center justify-center text-pink-300 shadow-lg active:border-pink-400 backdrop-blur-sm">
+      <svg class="w-8 h-8 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+      </svg>
+    </button>
+    
+    <div class="text-[11px] text-gray-300 pixel-font text-center px-1 hidden sm:block">
+      ← veya [A] / [D] →
+    </div>
+
+    <button id="rightTouchBtn" class="touch-btn flex-1 py-4 bg-gradient-to-b from-slate-800/95 to-slate-900 border-2 border-pink-500/40 rounded-2xl flex items-center justify-center text-pink-300 shadow-lg active:border-pink-400 backdrop-blur-sm">
+      <svg class="w-8 h-8 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+      </svg>
+    </button>
+  </footer>
+
+  <script>
+    /* =====================================================================
+       1. ARKA PLAN VE KUTLAMA GÜL YAPRAKLARI MOTORU
+       ===================================================================== */
+    const bgPetalsCanvas = document.getElementById('bgPetalsCanvas');
+    const bgPetalsCtx = bgPetalsCanvas.getContext('2d');
+
+    const celebPetalsCanvas = document.getElementById('celebrationPetalsCanvas');
+    const celebPetalsCtx = celebPetalsCanvas.getContext('2d');
+
+    function resizePetalCanvases() {
+      bgPetalsCanvas.width = window.innerWidth;
+      bgPetalsCanvas.height = window.innerHeight;
+
+      const mainEl = document.querySelector('main');
+      if (mainEl) {
+        const rect = mainEl.getBoundingClientRect();
+        celebPetalsCanvas.width = rect.width;
+        celebPetalsCanvas.height = rect.height;
+      }
+    }
+    window.addEventListener('resize', resizePetalCanvases);
+    resizePetalCanvases();
+
+    // Gül yaprağı şekli çizimi
+    function drawSinglePetal(ctx, x, y, size, rotation, color, opacity = 0.8) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.globalAlpha = opacity;
+      ctx.fillStyle = color;
+
+      ctx.beginPath();
+      ctx.moveTo(0, -size);
+      ctx.bezierCurveTo(size * 0.8, -size * 0.8, size * 0.9, size * 0.3, 0, size);
+      ctx.bezierCurveTo(-size * 0.9, size * 0.3, -size * 0.8, -size * 0.8, 0, -size);
+      ctx.fill();
+
+      // İnce zarif damar çizgisi
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, -size * 0.6);
+      ctx.quadraticCurveTo(size * 0.1, 0, 0, size * 0.7);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // Arka plan süzülen yapraklar sınıfı
+    const bgPetalColors = ['#f43f5e', '#fb7185', '#fda4af', '#e11d48', '#be123c'];
+    class FloatingPetal {
+      constructor(isInitial = false) {
+        this.reset(isInitial);
+      }
+      reset(isInitial = false) {
+        this.x = Math.random() * bgPetalsCanvas.width;
+        this.y = isInitial ? Math.random() * bgPetalsCanvas.height : -30;
+        this.size = 7 + Math.random() * 9;
+        this.speedY = 0.6 + Math.random() * 1.0;
+        this.speedX = (Math.random() - 0.5) * 0.7;
+        this.oscillation = Math.random() * Math.PI * 2;
+        this.oscSpeed = 0.02 + Math.random() * 0.03;
+        this.rotation = Math.random() * Math.PI * 2;
+        this.rotSpeed = (Math.random() - 0.5) * 0.025;
+        this.color = bgPetalColors[Math.floor(Math.random() * bgPetalColors.length)];
+        this.opacity = 0.35 + Math.random() * 0.35;
+      }
+      update() {
+        this.oscillation += this.oscSpeed;
+        this.y += this.speedY;
+        this.x += this.speedX + Math.sin(this.oscillation) * 0.7;
+        this.rotation += this.rotSpeed;
+
+        if (this.y > bgPetalsCanvas.height + 40) {
+          this.reset(false);
+        }
+      }
+      draw(ctx) {
+        drawSinglePetal(ctx, this.x, this.y, this.size, this.rotation, this.color, this.opacity);
+      }
+    }
+
+    // Arka plan yaprak dizisi
+    const bgPetals = [];
+    const BG_PETAL_COUNT = 32;
+    for (let i = 0; i < BG_PETAL_COUNT; i++) {
+      bgPetals.push(new FloatingPetal(true));
+    }
+
+    function animateBgPetals() {
+      bgPetalsCtx.clearRect(0, 0, bgPetalsCanvas.width, bgPetalsCanvas.height);
+      for (let i = 0; i < bgPetals.length; i++) {
+        bgPetals[i].update();
+        bgPetals[i].draw(bgPetalsCtx);
+      }
+      requestAnimationFrame(animateBgPetals);
+    }
+    animateBgPetals();
+
+    // Kutlama Ekranı Gül Yağmuru
+    let celebrationPetals = [];
+    let celebrationPetalsActive = false;
+
+    class CelebrationPetal {
+      constructor() {
+        this.reset();
+      }
+      reset() {
+        this.x = Math.random() * celebPetalsCanvas.width;
+        this.y = -20 - Math.random() * 80;
+        this.size = 9 + Math.random() * 10;
+        this.speedY = 2.2 + Math.random() * 2.8;
+        this.speedX = (Math.random() - 0.5) * 2;
+        this.rotation = Math.random() * Math.PI * 2;
+        this.rotSpeed = (Math.random() - 0.5) * 0.07;
+        this.oscillation = Math.random() * Math.PI * 2;
+        this.color = bgPetalColors[Math.floor(Math.random() * bgPetalColors.length)];
+        this.opacity = 0.85 + Math.random() * 0.15;
+      }
+      update() {
+        this.oscillation += 0.05;
+        this.y += this.speedY;
+        this.x += this.speedX + Math.sin(this.oscillation) * 1.2;
+        this.rotation += this.rotSpeed;
+
+        if (this.y > celebPetalsCanvas.height + 30) {
+          this.reset();
+        }
+      }
+      draw(ctx) {
+        drawSinglePetal(ctx, this.x, this.y, this.size, this.rotation, this.color, this.opacity);
+      }
+    }
+
+    function initCelebrationPetals() {
+      celebrationPetals = [];
+      const count = 35;
+      for (let i = 0; i < count; i++) {
+        celebrationPetals.push(new CelebrationPetal());
+      }
+      celebrationPetalsActive = true;
+      celebPetalsCanvas.classList.remove('hidden');
+      animateCelebrationPetals();
+    }
+
+    function animateCelebrationPetals() {
+      if (!celebrationPetalsActive) return;
+      celebPetalsCtx.clearRect(0, 0, celebPetalsCanvas.width, celebPetalsCanvas.height);
+      for (let i = 0; i < celebrationPetals.length; i++) {
+        celebrationPetals[i].update();
+        celebrationPetals[i].draw(celebPetalsCtx);
+      }
+      requestAnimationFrame(animateCelebrationPetals);
+    }
+
+    /* =====================================================================
+       2. TATLI & NEŞELİ RETRO CHIPTUNE MÜZİK MOTORU
+       ===================================================================== */
+    let audioCtx = null;
+    let isMuted = true;
+    let synthPlaying = false;
+    let synthTimer = null;
+    const externalAudio = document.getElementById('externalAudio');
+
+    const melodyNotes = [
+      { f: 523.25, d: 0.16 }, // C5
+      { f: 659.25, d: 0.16 }, // E5
+      { f: 783.99, d: 0.16 }, // G5
+      { f: 987.77, d: 0.22 }, // B5
+      { f: 880.00, d: 0.16 }, // A5
+      { f: 783.99, d: 0.22 }, // G5
+      { f: 659.25, d: 0.16 }, // E5
+      { f: 587.33, d: 0.24 }, // D5
+      
+      { f: 523.25, d: 0.16 }, // C5
+      { f: 587.33, d: 0.16 }, // D5
+      { f: 659.25, d: 0.16 }, // E5
+      { f: 880.00, d: 0.22 }, // A5
+      { f: 783.99, d: 0.18 }, // G5
+      { f: 659.25, d: 0.18 }, // E5
+      { f: 523.25, d: 0.32 }, // C5
+      { f: 0,      d: 0.12 }  // Es
+    ];
+    let noteIndex = 0;
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          audioCtx = new AudioContext();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(freq, duration, type = "triangle", vol = 0.05) {
+      if (!audioCtx || isMuted || freq === 0) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function playPickupSound() {
+      if (isMuted) return;
+      initAudio();
+      playTone(523.25, 0.08, 'sine', 0.08);
+      setTimeout(() => playTone(783.99, 0.12, 'triangle', 0.08), 60);
+    }
+
+    function playHazardSound() {
+      if (isMuted) return;
+      initAudio();
+      playTone(220, 0.15, 'sawtooth', 0.06);
+      setTimeout(() => playTone(146.83, 0.25, 'sawtooth', 0.06), 110);
+    }
+
+    function scheduleNextMelody() {
+      if (!synthPlaying || isMuted) return;
+      const note = melodyNotes[noteIndex];
+      if (note.f > 0) {
+        playTone(note.f, note.d * 0.9, 'triangle', 0.04);
+      }
+      noteIndex = (noteIndex + 1) % melodyNotes.length;
+      synthTimer = setTimeout(scheduleNextMelody, note.d * 1000);
+    }
+
+    function toggleAudio() {
+      initAudio();
+      isMuted = !isMuted;
+      const soundIcon = document.getElementById('soundIcon');
+
+      if (!isMuted) {
+        soundIcon.textContent = "🔊";
+        const promise = externalAudio.play();
+        if (promise !== undefined) {
+          promise.then(() => {}).catch(() => {
+            synthPlaying = true;
+            scheduleNextMelody();
+          });
+        }
+      } else {
+        soundIcon.textContent = "🔇";
+        externalAudio.pause();
+        synthPlaying = false;
+        if (synthTimer) clearTimeout(synthTimer);
+      }
+    }
+
+    /* =====================================================================
+       3. OYUN MOTORU & CANVAS
+       ===================================================================== */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const victoryScreen = document.getElementById('victoryScreen');
+    const gameOverReason = document.getElementById('gameOverReason');
+    const gameOverEmoji = document.getElementById('gameOverEmoji');
+    const finalScore = document.getElementById('finalScore');
+
+    let gameRunning = false;
+    let score = 0;
+    const TARGET_SCORE = 100;
+    let animationFrameId = null;
+    let lastSpawnTime = 0;
+    const spawnInterval = 850;
+    let animTime = 0;
+
+    function resizeGameCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      resizePetalCanvases();
+    }
+    window.addEventListener('resize', resizeGameCanvas);
+    resizeGameCanvas();
+
+    // Tarih seçicisini bugünden itibaren başlat
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const dateInput = document.getElementById('dateInput');
+    dateInput.value = todayStr;
+    dateInput.min = todayStr;
+
+    // Poodle Karakter Tanımı
+    const player = {
+      x: 100,
+      y: 0,
+      width: 46,
+      height: 38,
+      speed: 6.8,
+      direction: 1,
+      isMoving: false
+    };
+
+    // Klavye Kontrolleri
+    const keys = { left: false, right: false };
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+    });
+
+    // Mobil Butonları
+    const leftTouchBtn = document.getElementById('leftTouchBtn');
+    const rightTouchBtn = document.getElementById('rightTouchBtn');
+
+    function attachTouchHandlers(btn, dirKey) {
+      const start = (e) => { e.preventDefault(); keys[dirKey] = true; };
+      const end = (e) => { e.preventDefault(); keys[dirKey] = false; };
+      btn.addEventListener('touchstart', start, { passive: false });
+      btn.addEventListener('touchend', end, { passive: false });
+      btn.addEventListener('mousedown', start);
+      btn.addEventListener('mouseup', end);
+      btn.addEventListener('mouseleave', end);
+    }
+    attachTouchHandlers(leftTouchBtn, 'left');
+    attachTouchHandlers(rightTouchBtn, 'right');
+
+    // Sadeleştirilmiş Toplanacak Ögeler
+    const TREAT_TYPES = [
+      { type: 'treat', name: 'Kahve', emoji: '☕', points: 10, color: '#f59e0b' },
+      { type: 'treat', name: 'Tatlı', emoji: '🍰', points: 15, color: '#f43f5e' }
+    ];
+
+    // Kaçılacak Engeller
+    const HAZARD_TYPES = [
+      { type: 'hazard', name: 'Hastalık', emoji: '🤒', color: '#a855f7', message: 'Hastalık engeline denk geldik!' },
+      { type: 'hazard', name: 'Yağmur', emoji: '🌧️', color: '#60a5fa', message: 'Yağmura yakalandık!' },
+      { type: 'hazard', name: 'Sel', emoji: '🌊', color: '#3b82f6', message: 'Su birikintisine bastık!' },
+      { type: 'hazard', name: 'Soğuk Hava', emoji: '🥶', color: '#93c5fd', message: 'Hava çok soğuk, kaçamadık!' }
+    ];
+
+    let fallingItems = [];
+
+    function spawnItem() {
+      const isTreat = Math.random() < 0.65;
+      const template = isTreat 
+        ? TREAT_TYPES[Math.floor(Math.random() * TREAT_TYPES.length)]
+        : HAZARD_TYPES[Math.floor(Math.random() * HAZARD_TYPES.length)];
+
+      const size = 36;
+      const x = Math.random() * (canvas.width - size - 24) + 12;
+      const speed = 2.4 + Math.random() * 2.0;
+
+      fallingItems.push({
+        ...template,
+        x: x,
+        y: -size - 10,
+        size: size,
+        speed: speed,
+        rotation: 0,
+        rotSpeed: (Math.random() - 0.5) * 0.04
+      });
+    }
+
+    // Poodle Karakter Çizimi
+    function drawPoodle(ctx, x, y, width, height, dir, isMoving, time) {
+      ctx.save();
+      ctx.translate(x + width / 2, y + height / 2);
+      ctx.scale(dir, 1);
+
+      const bounce = isMoving ? Math.sin(time * 16) * 2.5 : 0;
+      const legWalk = isMoving ? Math.sin(time * 18) * 3.5 : 0;
+      const wag = Math.sin(time * 20) * 0.35;
+
+      const furColor = '#ffffff';
+      const shadowColor = '#f1f5f9';
+      const noseColor = '#1e1b4b';
+      const collarColor = '#f43f5e';
+
+      // Kuyruk Pufu
+      ctx.save();
+      ctx.translate(-15, -3 + bounce);
+      ctx.rotate(-0.5 + wag);
+      ctx.fillStyle = furColor;
+      ctx.beginPath();
+      ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Bacaklar
+      ctx.fillStyle = furColor;
+      ctx.fillRect(-9 + legWalk, 10 + bounce, 4.5, 7.5);
+      ctx.fillRect(7 - legWalk, 10 + bounce, 4.5, 7.5);
+
+      // Patiler
+      ctx.beginPath();
+      ctx.arc(-7 + legWalk, 16 + bounce, 3.8, 0, Math.PI * 2);
+      ctx.arc(9 - legWalk, 16 + bounce, 3.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Gövde
+      ctx.fillStyle = furColor;
+      ctx.beginPath();
+      ctx.ellipse(-1, 2 + bounce, 15, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Göğüs Tüyleri
+      ctx.fillStyle = shadowColor;
+      ctx.beginPath();
+      ctx.arc(9, 0 + bounce, 9.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Kırmızı/Pembe Tasma
+      ctx.fillStyle = collarColor;
+      ctx.fillRect(8, -4 + bounce, 5, 3.5);
+
+      // Kafa Pufu
+      ctx.fillStyle = furColor;
+      ctx.beginPath();
+      ctx.arc(13, -12 + bounce, 9.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Burun Bölgesi
+      ctx.fillStyle = shadowColor;
+      ctx.beginPath();
+      ctx.arc(20, -7 + bounce, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = noseColor;
+      ctx.beginPath();
+      ctx.arc(22.5, -8 + bounce, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Göz
+      ctx.fillStyle = noseColor;
+      ctx.beginPath();
+      ctx.arc(15, -11 + bounce, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(15.5, -12 + bounce, 1, 1);
+
+      // Kulak
+      ctx.fillStyle = shadowColor;
+      ctx.beginPath();
+      ctx.ellipse(7, -8 + bounce, 4.5, 7.5, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // Oyun Döngüsü
+    function updateGame(timestamp) {
+      if (!gameRunning) return;
+
+      animTime += 0.016;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Zemin
+      const groundY = canvas.height - 34;
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, groundY);
+      ctx.lineTo(canvas.width, groundY);
+      ctx.stroke();
+
+      ctx.fillStyle = '#1a0624';
+      ctx.fillRect(0, groundY + 1.5, canvas.width, canvas.height - groundY);
+
+      // Oyuncu Hareketi
+      player.y = groundY - player.height + 2;
+      player.isMoving = false;
+
+      if (keys.left) {
+        player.x -= player.speed;
+        player.direction = -1;
+        player.isMoving = true;
+      }
+      if (keys.right) {
+        player.x += player.speed;
+        player.direction = 1;
+        player.isMoving = true;
+      }
+
+      if (player.x < 10) player.x = 10;
+      if (player.x + player.width > canvas.width - 10) player.x = canvas.width - player.width - 10;
+
+      // Poodle Çiz
+      drawPoodle(ctx, player.x, player.y, player.width, player.height, player.direction, player.isMoving, animTime);
+
+      // Yeni Öğe Üret
+      if (timestamp - lastSpawnTime > spawnInterval) {
+        spawnItem();
+        lastSpawnTime = timestamp;
+      }
+
+      // Düşen Ögeler
+      for (let i = fallingItems.length - 1; i >= 0; i--) {
+        const item = fallingItems[i];
+        item.y += item.speed;
+        item.rotation += item.rotSpeed;
+
+        ctx.save();
+        ctx.translate(item.x + item.size / 2, item.y + item.size / 2);
+        ctx.rotate(item.rotation);
+
+        ctx.fillStyle = item.type === 'hazard' ? 'rgba(76, 29, 149, 0.8)' : 'rgba(30, 27, 75, 0.8)';
+        ctx.strokeStyle = item.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(-item.size / 2, -item.size / 2, item.size, item.size, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.emoji, 0, -1);
+
+        ctx.font = '9px "Press Start 2P", monospace';
+        ctx.fillStyle = item.color;
+        ctx.fillText(item.name, 0, item.size / 2 + 11);
+        ctx.restore();
+
+        // Çarpışma Testi
+        const hitPadding = 8;
+        const playerBox = {
+          x: player.x + hitPadding,
+          y: player.y + hitPadding,
+          w: player.width - hitPadding * 2,
+          h: player.height - hitPadding
+        };
+
+        const itemBox = {
+          x: item.x + 4,
+          y: item.y + 4,
+          w: item.size - 8,
+          h: item.size - 8
+        };
+
+        const isColliding = (
+          playerBox.x < itemBox.x + itemBox.w &&
+          playerBox.x + playerBox.w > itemBox.x &&
+          playerBox.y < itemBox.y + itemBox.h &&
+          playerBox.y + playerBox.h > itemBox.y
+        );
+
+        if (isColliding) {
+          if (item.type === 'treat') {
+            score += item.points;
+            scoreDisplay.textContent = score;
+            playPickupSound();
+
+            if (score >= TARGET_SCORE) {
+              triggerVictory();
+              return;
+            }
+          } else {
+            triggerGameOver(item);
+            return;
+          }
+          fallingItems.splice(i, 1);
+          continue;
+        }
+
+        if (item.y > canvas.height + 30) {
+          fallingItems.splice(i, 1);
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(updateGame);
+    }
+
+    /* =====================================================================
+       4. DURUM GEÇİŞLERİ VE KUTLAMA
+       ===================================================================== */
+    function startGame() {
+      resizeGameCanvas();
+      score = 0;
+      scoreDisplay.textContent = "0";
+      fallingItems = [];
+      gameRunning = true;
+      player.x = canvas.width / 2 - player.width / 2;
+
+      startScreen.classList.add('hidden');
+      gameOverScreen.classList.add('hidden');
+      victoryScreen.classList.add('hidden');
+      celebPetalsCanvas.classList.add('hidden');
+      celebrationPetalsActive = false;
+
+      lastSpawnTime = performance.now();
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(updateGame);
+    }
+
+    function restartGame() {
+      startGame();
+    }
+
+    function triggerGameOver(hazard) {
+      gameRunning = false;
+      cancelAnimationFrame(animationFrameId);
+      playHazardSound();
+
+      gameOverEmoji.textContent = hazard.emoji;
+      gameOverReason.textContent = hazard.message || `${hazard.name} engeline denk geldik!`;
+      finalScore.textContent = score;
+
+      gameOverScreen.classList.remove('hidden');
+    }
+
+    function triggerVictory() {
+      gameRunning = false;
+      cancelAnimationFrame(animationFrameId);
+
+      // 1. Gül yaprakları yağmurunu başlat
+      initCelebrationPetals();
+
+      // 2. Renkli konfeti patlatması
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 70,
+          spread: 75,
+          colors: ['#f43f5e', '#ec4899', '#fb7185', '#ffffff', '#fbbf24'],
+          origin: { y: 0.55 }
+        });
+        setTimeout(() => {
+          confetti({
+            particleCount: 50,
+            angle: 60,
+            spread: 55,
+            colors: ['#e11d48', '#fda4af', '#f43f5e'],
+            origin: { x: 0 }
+          });
+          confetti({
+            particleCount: 50,
+            angle: 120,
+            spread: 55,
+            colors: ['#e11d48', '#fda4af', '#f43f5e'],
+            origin: { x: 1 }
+          });
+        }, 300);
+      }
+
+      // 3. Modalı aç
+      victoryScreen.classList.remove('hidden');
+    }
+
+    /* =====================================================================
+       5. WHATSAPP YÖNLENDİRME
+       ===================================================================== */
+    function sendToWhatsapp() {
+      const dateVal = document.getElementById('dateInput').value;
+      const timeVal = document.getElementById('timeInput').value;
+
+      let dateFormatted = dateVal;
+      if (dateVal) {
+        const parts = dateVal.split('-');
+        if (parts.length === 3) {
+          dateFormatted = `${parts[2]}.${parts[1]}.${parts[0]}`;
+        }
+      }
+
+      const phone = "905071265840";
+      const message = `Poodle Cafe Run'ı 100 puanla tamamladım! 🐩☕🍰🌹 ${dateFormatted} saat ${timeVal} için kahve ve tatlı sözümüzü unutma ✨`;
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+
+      window.open(url, '_blank');
+    }
+  </script>
+</body>
+</html>
